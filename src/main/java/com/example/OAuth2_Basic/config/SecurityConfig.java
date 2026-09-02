@@ -21,18 +21,18 @@ public class SecurityConfig {
         return new BCryptPasswordEncoder();
     }
 
-    @Bean
-    public UserDetailsService userDetailsService(
-            PasswordEncoder passwordEncoder) {
-
-        UserDetails user = User.builder()
-                .username("abhinav")
-                .password(passwordEncoder.encode("password123"))
-                .roles("USER")
-                .build();
-
-        return new InMemoryUserDetailsManager(user);
-    }
+//    @Bean
+//    public UserDetailsService userDetailsService(
+//            PasswordEncoder passwordEncoder) {
+//
+//        UserDetails user = User.builder()
+//                .username("abhinav")
+//                .password(passwordEncoder.encode("password123"))
+//                .roles("USER")
+//                .build();
+//
+//        return new InMemoryUserDetailsManager(user);
+//    }
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http)
             throws Exception {
