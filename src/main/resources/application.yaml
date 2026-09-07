@@ -15,3 +15,7 @@ spring:
     properties:
       hibernate:
         dialect: org.hibernate.dialect.MySQLDialect
+jwt:
+  secret: ${JWT_SECRET}
+  expiration: 30000 # 30 seconds in milliseconds
+  refresh-expiration: 120000 # 2 minutes in milliseconds

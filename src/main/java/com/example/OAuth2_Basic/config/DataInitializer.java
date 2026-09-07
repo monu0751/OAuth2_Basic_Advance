@@ -27,6 +27,17 @@ public class DataInitializer {
 
                 userRepository.save(user);
             }
+
+            if (userRepository.findByUsername("admin").isEmpty()) {
+
+                User admin = new User(
+                        "admin",
+                        passwordEncoder.encode("admin123"),
+                        "ADMIN"
+                );
+
+                userRepository.save(admin);
+            }
         };
     }
 }
