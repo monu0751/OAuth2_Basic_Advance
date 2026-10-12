@@ -3,9 +3,12 @@ package com.example.OAuth2_Basic.config;
 import com.example.OAuth2_Basic.security.JwtAccessDeniedHandler;
 import com.example.OAuth2_Basic.security.JwtAuthenticationEntryPoint;
 import com.example.OAuth2_Basic.security.JwtAuthenticationFilter;
+import com.example.OAuth2_Basic.service.CustomOidcUserService;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.annotation.Order;
 import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
@@ -24,37 +27,20 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 @Configuration
 @EnableWebSecurity
 public class SecurityConfig {
-    private final JwtAuthenticationFilter jwtAuthenticationFilter;
-    private final JwtAuthenticationEntryPoint
-            authenticationEntryPoint;
+    private final CustomOidcUserService customOidcUserService;
 
-    private final JwtAccessDeniedHandler
-            accessDeniedHandler;
 
     public SecurityConfig(
-            JwtAuthenticationFilter jwtAuthenticationFilter, JwtAuthenticationEntryPoint authenticationEntryPoint, JwtAccessDeniedHandler accessDeniedHandler) {
+            CustomOidcUserService customOidcUserService) {
+        this.customOidcUserService = customOidcUserService;
 
-        this.jwtAuthenticationFilter = jwtAuthenticationFilter;
-        this.authenticationEntryPoint = authenticationEntryPoint;
-        this.accessDeniedHandler = accessDeniedHandler;
     }
     @Bean
     public PasswordEncoder passwordEncoder() {
         return new BCryptPasswordEncoder();
     }
 
-//    @Bean
-//    public UserDetailsService userDetailsService(
-//            PasswordEncoder passwordEncoder) {
-//
-//        UserDetails user = User.builder()
-//                .username("abhinav")
-//                .password(passwordEncoder.encode("password123"))
-//                .roles("USER")
-//                .build();
-//
-//        return new InMemoryUserDetailsManager(user);
-//    }
+
 
     @Bean
     public AuthenticationManager authenticationManager(
@@ -64,39 +50,21 @@ public class SecurityConfig {
         return configuration.getAuthenticationManager();
     }
     @Bean
-    public SecurityFilterChain securityFilterChain(HttpSecurity http)
-            throws Exception {
+    @Order(1)
+    public SecurityFilterChain apiSecurityFilterChain(
+            HttpSecurity http) throws Exception {
 
         http
-                .cors(cors -> {})
+                .securityMatcher("/auth_oidc/api/**")
                 .csrf(AbstractHttpConfigurer::disable)
-                .sessionManagement(session ->
-                        session.sessionCreationPolicy(
-                                SessionCreationPolicy.STATELESS
-                        )
-                )
-                .exceptionHandling(exception -> exception
-
-                        .authenticationEntryPoint(
-                                authenticationEntryPoint
-                        )
-
-                        .accessDeniedHandler(
-                                accessDeniedHandler
-                        )
+                .sessionManagement(session -> session
+                        .sessionCreationPolicy(SessionCreationPolicy.STATELESS)
                 )
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/api/public", "/auth/login", "/auth/refresh","/auth/logout").permitAll()
-                        .requestMatchers("/api/admin")
-                        .hasRole("ADMIN")
-
-                        .requestMatchers("/api/user")
-                        .hasAnyRole("USER", "ADMIN")
                         .anyRequest().authenticated()
                 )
-                .addFilterBefore(
-                        jwtAuthenticationFilter,
-                        UsernamePasswordAuthenticationFilter.class
+                .oauth2ResourceServer(oauth2 -> oauth2
+                        .jwt(Customizer.withDefaults())
                 );
 
         return http.build();

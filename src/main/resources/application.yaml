@@ -1,6 +1,19 @@
 spring:
   application:
     name: OAuth2_Basic
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: http://localhost:8081/realms/ecommerce
+#          issuer-uri: https://accounts.google.com
+
+      client:
+        registration:
+          google:
+            client-id: ${google_client_id}
+            client-secret: ${google_client_secret}
+            scope: profile, email, openid
 
   datasource:
     url: jdbc:mysql://localhost:3306/oauth2_basic?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
@@ -19,3 +32,8 @@ jwt:
   secret: ${JWT_SECRET}
   expiration: 30000 # 30 seconds in milliseconds
   refresh-expiration: 120000 # 2 minutes in milliseconds
+logging:
+  level:
+    org.springframework.security: DEBUG
+    org.springframework.security.oauth2: DEBUG
+

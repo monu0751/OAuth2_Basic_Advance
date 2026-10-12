@@ -24,7 +24,7 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 
-@Component
+//@Component
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     private final String secret;
