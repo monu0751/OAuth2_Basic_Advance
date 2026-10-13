@@ -40,5 +40,10 @@ public class SecurityTestController {
         );
     }
 
+    @GetMapping("/api/custom/secure")
+    public Object secure(Authentication authentication) {
+        return authentication.getPrincipal();
+    }
+
 
 }

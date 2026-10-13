@@ -1,101 +1,82 @@
 ﻿# OAuth2_Basic
-A Spring Boot 4 application that combines:
-- **Local username/password authentication**
-- **JWT access tokens**
-- **Refresh token rotation in HTTP-only cookies**
-- **Google OIDC user login support**
-- **Keycloak / JWT resource-server style protection for secured API endpoints**
-- **MySQL persistence for users and refresh tokens**
-This project is built with Spring Security and is intended as a learning/demo application for comparing and combining different authentication flows.
-## Features
-- Login with local username/password
-- Issue JWT access tokens after login
-- Store refresh tokens in an HTTP-only cookie
-- Refresh access tokens using refresh-token rotation
-- Revoke refresh tokens on logout
-- Load and map Google OIDC users
-- Persist OIDC users in MySQL
-- Protect endpoints with roles such as `USER` and `ADMIN`
-- Return custom JSON responses for `401` and `403`
+
+Spring Boot application that uses **Google OIDC** for authentication, reads the authenticated user information from the Google **ID token**, creates the application's own **JWT access token**, and then uses that JWT to access secured endpoints.
+
+## What this project does
+
+1. User starts login with Google.
+2. Google authenticates the user and returns an **ID token**.
+3. The application validates and decodes the OIDC user information.
+4. The application generates its **own JWT access token**.
+5. The JWT is used to call protected endpoints such as `/api/user` and `/api/admin`.
+6. A refresh token is stored in an HTTP-only cookie and can be used to rotate access tokens.
+
 ## Tech stack
+
 - Java 25
-- Spring Boot 4.1.1
+- Spring Boot
 - Spring Security
-- Spring Data JPA
-- MySQL
-- OAuth2 Client
-- OAuth2 Resource Server
-- JJWT
-- Lombok
-## Project structure
-Key classes in the project:
-- `src/main/java/com/example/OAuth2_Basic/controllers/AuthController.java`
-  - Local login, refresh, and logout endpoints
-- `src/main/java/com/example/OAuth2_Basic/controllers/TestController.java`
-  - Sample protected endpoints and OIDC user access
-- `src/main/java/com/example/OAuth2_Basic/controllers/SecurityTestController.java`
-  - Keycloak/JWT protected API test endpoint
-- `src/main/java/com/example/OAuth2_Basic/service/CustomOidcUserService.java`
-  - Loads Google OIDC users and stores them locally
-- `src/main/java/com/example/OAuth2_Basic/service/EndUserService.java`
-  - Creates or updates OIDC users in the database
-- `src/main/java/com/example/OAuth2_Basic/service/RefreshTokenService.java`
-  - Refresh-token lifecycle management
-- `src/main/java/com/example/OAuth2_Basic/security/JwtService.java`
-  - JWT creation and validation helpers
-- `src/main/java/com/example/OAuth2_Basic/security/JwtAuthenticationFilter.java`
-  - Reads Bearer access tokens from requests
-- `src/main/java/com/example/OAuth2_Basic/config/SecurityConfig.java`
-  - Spring Security configuration
-## Authentication flows
-### 1. Local username/password + JWT
-1. Client posts username and password to `/auth/login`
-2. Spring authenticates the user
-3. The app returns:
-   - a JWT access token in the response body
-   - a refresh token in an HTTP-only cookie
-4. Client uses the access token in the `Authorization: Bearer ...` header
-5. When the access token expires, the client calls `/auth/refresh`
-6. `/auth/logout` revokes the refresh token and clears the cookie
-### 2. Google OIDC login
-The project includes Google OIDC support via `spring-boot-starter-oauth2-client` and `CustomOidcUserService`.
-Typical flow:
-1. User opens the Google login entry point
-2. Spring redirects the user to Google
-3. Google authenticates the user
-4. Spring receives the OIDC user information
-5. `CustomOidcUserService` maps the Google profile to a local user record
-### 3. Keycloak / resource-server JWT flow
-The project also contains JWT resource-server style configuration and test endpoints for Keycloak-style access tokens.
-Typical flow:
-1. Client obtains a JWT from Keycloak or another issuer
-2. Client sends the JWT in the `Authorization` header
-3. Secured endpoints validate the token and read claims
+- Spring Security OAuth2 Client
+- JWT (`jjwt`)
+- MySQL + Spring Data JPA
+
+## Authentication flow
+
+### Google OIDC login
+
+The application starts the Google login flow through:
+
+```text
+/oauth2/authorization/google
+```
+
+After successful login:
+
+- Google returns the OIDC user information
+- the application reads claims such as:
+  - `sub`
+  - `name`
+  - `email`
+  - `picture`
+- the application creates or updates its local user record
+- the application generates its own JWT access token
+
+### JWT-based API access
+
+The generated JWT access token is then sent in the `Authorization` header:
+
+```text
+Authorization: Bearer <access-token>
+```
+
+That token is required to access protected endpoints.
+
 ## API endpoints
-### Local auth
-- `POST /auth/login`
-- `POST /auth/refresh`
-- `POST /auth/logout`
-### Public / sample endpoints
-- `GET /api/public`
-- `GET /api/user`
-- `GET /api/admin`
-- `GET /api/me`
-### OIDC / Google login
-- `GET /oauth2/authorization/google`
-- `GET /login/oauth2/code/google`
-### Keycloak / JWT secured test endpoint
-- `GET /auth_oidc/api/secure`
+
+### Public / auth endpoints
+
+- `GET /api/public` - public endpoint
+- `POST /auth/login` - login with username/password and return JWT + refresh cookie
+- `POST /auth/refresh` - rotate refresh token and issue a new JWT
+- `POST /auth/logout` - revoke refresh token and clear cookie
+- `GET /oauth2/authorization/google` - start Google login flow
+
+### Secured endpoints
+
+- `GET /api/user` - accessible to `USER` or `ADMIN`
+- `GET /api/admin` - accessible only to `ADMIN`
+
 ## Configuration
+
 ### `application.yaml`
-The project uses MySQL, JWT secret settings, Google OAuth2 client registration, and logging options.
-Example keys you need to configure:
+
+Set your values in `src/main/resources/application.yaml`:
+
 ```yaml
 spring:
-  datasource:
-    url: jdbc:mysql://localhost:3306/oauth2_basic?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
-    username: root
-    password: rootpassword
+  application:
+    name: OAuth2_Basic
+
   security:
     oauth2:
       client:
@@ -107,58 +88,106 @@ spring:
               - openid
               - profile
               - email
+
+  datasource:
+    url: jdbc:mysql://localhost:3306/oauth2_basic?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
+    username: root
+    password: rootpassword
+    driver-class-name: com.mysql.cj.jdbc.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.MySQLDialect
+
 jwt:
   secret: ${JWT_SECRET}
   expiration: 30000
   refresh-expiration: 120000
 ```
-## Prerequisites
-- Java 25
-- Maven
-- MySQL server running locally
-- A MySQL database named `oauth2_basic`
-- Google OAuth client credentials if you want to test OIDC login
-- Keycloak or another JWT issuer if you want to test the resource-server flow
-## Database setup
-Create the database first:
-```sql
-CREATE DATABASE oauth2_basic;
-```
-The app uses JPA to create and update tables automatically based on entities.
-## Google OAuth2 setup
-If you want to test Google login locally, create a Google OAuth client and register this redirect URI:
-```text
-http://localhost:8080/login/oauth2/code/google
-```
-Set these environment variables before starting the app:
+
+### Environment variables
+
+Set these before running the application:
+
 ```powershell
 $env:google_client_id="your-google-client-id"
 $env:google_client_secret="your-google-client-secret"
 $env:JWT_SECRET="your-long-random-secret"
 ```
+
+## Google OAuth2 setup
+
+Create Google OAuth2 credentials in Google Cloud Console and add this redirect URI:
+
+```text
+http://localhost:8080/login/oauth2/code/google
+```
+
+Also make sure the OAuth consent screen is configured and your Google account is added as a test user if required.
+
+## Database setup
+
+Create the MySQL database before starting the app:
+
+```sql
+CREATE DATABASE oauth2_basic;
+```
+
 ## Running the application
-From the project root:
+
+### Using Maven
+
 ```powershell
-mvn clean spring-boot:run
+cd "C:\Users\Abhinav\OneDrive\Documents\GitHub\OAuth2_Basic"
+mvn clean compile
+mvn spring-boot:run
 ```
-Or build first:
-```powershell
-mvn clean package
-java -jar target/OAuth2_Basic-0.0.1-SNAPSHOT.jar
+
+### Verify login flow
+
+Open the Google login entry point in your browser:
+
+```text
+http://localhost:8080/oauth2/authorization/google
 ```
-## Debugging
-If you want to inspect security flow, enable debug logging:
-```yaml
-logging:
-  level:
-    org.springframework.security: DEBUG
-    org.springframework.security.oauth2: DEBUG
+
+After successful login, the application should generate its own JWT access token and use it for secure API access.
+
+## Example request
+
+```http
+GET /api/user HTTP/1.1
+Host: localhost:8080
+Authorization: Bearer <your-jwt-access-token>
 ```
-## Notes
-- The project combines multiple auth styles for learning purposes.
-- JWT access tokens are used for API access.
-- Refresh tokens are stored in HTTP-only cookies.
-- Google OIDC support is handled separately from the local JWT login.
-- Keycloak/JWT support is available for secured API testing.
+
+## Important notes
+
+- This project uses **Google OIDC** for login.
+- It then issues its **own JWT** for API authorization.
+- The app is configured to use `SessionCreationPolicy.STATELESS` for JWT-based API security.
+- Refresh tokens are stored in an HTTP-only cookie.
+
+## Project structure
+
+- `controllers/` - auth and API controllers
+- `config/` - Spring Security and app configuration
+- `service/` - JWT, refresh token, and OIDC user services
+- `security/` - JWT filter, handlers, and token utilities
+- `entity/` - JPA entities
+- `repository/` - database repositories
+
+## Troubleshooting
+
+- **401 on `/oauth2/authorization/google`**: permit `/oauth2/**` and `/login/oauth2/**` in `SecurityConfig`.
+- **404 after Google login**: configure a valid success URL or controller mapping.
+- **`OidcUserService` not found**: ensure `spring-boot-starter-oauth2-client` is in `pom.xml` and reload Maven.
+- **Database connection error**: make sure MySQL is running and `oauth2_basic` exists.
+
 ## License
-No license has been specified.
+
+No license has been added yet.
