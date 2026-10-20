@@ -7,8 +7,10 @@ import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Primary;
 import org.springframework.core.annotation.Order;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -23,6 +25,10 @@ import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.oauth2.jwt.JwtDecoder;
+import org.springframework.security.oauth2.jwt.JwtDecoders;
+import org.springframework.security.oauth2.jwt.JwtValidators;
+import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.web.filter.OncePerRequestFilter;
@@ -55,6 +61,24 @@ public class SecurityConfig {
             throws Exception {
 
         return configuration.getAuthenticationManager();
+    }
+
+    @Bean("keycloakJwtDecoder")
+    @Primary
+    public JwtDecoder keycloakJwtDecoder() {
+
+        NimbusJwtDecoder decoder =
+                NimbusJwtDecoder.withJwkSetUri(
+                        "http://localhost:8081/realms/ecommerce/protocol/openid-connect/certs"
+                ).build();
+
+        decoder.setJwtValidator(
+                JwtValidators.createDefaultWithIssuer(
+                        "http://localhost:8081/realms/ecommerce"
+                )
+        );
+
+        return decoder;
     }
 
     @Bean
@@ -137,6 +161,26 @@ public class SecurityConfig {
 
     @Bean
     @Order(2)
+    public SecurityFilterChain entraSecurityFilterChain(
+            HttpSecurity http,
+            @Qualifier("entraJwtDecoder") JwtDecoder entraJwtDecoder)
+            throws Exception {
+
+        http
+                .securityMatcher("/auth/entra/api/**")
+                .csrf(AbstractHttpConfigurer::disable)
+                .sessionManagement(session -> session
+                        .sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                .authorizeHttpRequests(auth -> auth
+                        .anyRequest().hasAuthority("SCOPE_access_as_user"))
+                .oauth2ResourceServer(oauth2 -> oauth2
+                        .jwt(jwt -> jwt.decoder(entraJwtDecoder)));
+
+        return http.build();
+    }
+
+    @Bean
+    @Order(3)
     public SecurityFilterChain apiSecurityFilterChain(
             HttpSecurity http) throws Exception {
 
@@ -150,14 +194,14 @@ public class SecurityConfig {
                         .anyRequest().authenticated()
                 )
                 .oauth2ResourceServer(oauth2 -> oauth2
-                        .jwt(Customizer.withDefaults())
+                        .jwt(jwt -> jwt.decoder(keycloakJwtDecoder()))
                 );
 
         return http.build();
     }
 
     @Bean
-    @Order(3)
+    @Order(4)
     public SecurityFilterChain browserSecurityFilterChain(
             HttpSecurity http) throws Exception {
 

@@ -38,4 +38,7 @@ logging:
     org.springframework.security.oauth2: DEBUG
 google:
   client-id: ${google_client_id}
+entra:
+    api-client-id: ${entra_client_id}
+    api-tenant-id: ${entra_tenant_id}
 
